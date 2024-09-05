@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+  
+<mapper namespace="Board">
+
+    <!--
+    boardSearch : refid로 설정했던 id (공통으로 사용할 아이디가 무엇이니?)
+    searchWord != null : 키워드가 존재한다 => 검색했다!
+    searchType == 'title' : 제목으로 검색을 했다!
+   	 내가 입력받은 searchWord로 검색 조건을 달아줌
+    --> 
+	<sql id="boardSearch">
+		<!-- 제목으로 검색했을 때 -->
+		<if test="searchWord != null and searchType == 'title'">
+			and (botitle like '%' || #{searchWord} || '%')
+		</if>
+		<!-- 작성자로 검색했을 때 -->
+		<if test="searchWord != null and searchType == 'writer'">
+			and (bowriter like '%' || #{searchWord} || '%')
+		</if>
+	</sql>
+
+	<!-- selectKey를 사용하기 위해 useGeneratedKeys="true"가 필요함 -->
+	<insert id="insertBoard" parameterType="boardVO" useGeneratedKeys="true">
+		<selectKey keyProperty="boNo" order="BEFORE" resultType="int">
+			select seq_board.nextval from dual
+		</selectKey>
+		insert into board(
+			bono, botitle, bowriter, bocontent, bodate
+		) values (
+			#{boNo}, #{boTitle}, #{boWriter}, #{boContent}, sysdate
+		)
+	</insert>
+	
+	<update id="incrementHit" parameterType="int">
+		update board
+		set
+			bohit = bohit + 1
+		where bono = #{boNo}
+	</update>
+
+	<select id="selectBoard" parameterType="int" resultType="boardVO">
+		select
+			bono, botitle, bowriter, bocontent, bodate, bohit
+		from board
+		where bono = #{boNo}
+	</select>
+	
+	<update id="updateBoard" parameterType="boardVO">
+		update board
+		set
+			botitle = #{boTitle},
+			bocontent = #{boContent},
+			bodate = sysdate
+		where bono = #{boNo}
+	</update>
+	
+	<delete id="deleteBoard" parameterType="int">
+		delete from board
+		where bono = #{boNo}
+	</delete>
+
+	<select id="selectBoardList_" resultType="boardVO">
+		SELECT *
+		FROM (
+		    SELECT 
+		        bono, botitle, bowriter, bocontent, bodate, bohit
+		    FROM 
+		        board
+		    ORDER BY 
+		        bono DESC
+		)
+		<![CDATA[
+			WHERE ROWNUM <= 5
+		]]>
+	</select>
+	
+	<select id="selectBoardCount" parameterType="pagingVO" resultType="int">
+		select count(bono)
+		from board
+		<!--
+	  		동적 쿼리를 구현하기 위한 참조건 구현
+	  		동적 쿼리를 만들기 위한 include / 공통으로 사용할 레퍼런스 아이디 : boardSearch
+	  		동적 쿼리에 의해 검색이 되었다면? => 쿼리 실행 / 그렇지 않다면? => 없는 상태로 실행
+  		-->
+		<!-- 동적쿼리 -> 동적쿼리에 대해서 실행된 것이 있다면 boardSearch가 실행되고 없다면 실행안함 -->
+		where 1=1
+		<include refid="boardSearch"/>
+	</select>
+	
+	<select id="selectBoardList" parameterType="pagingVO" resultType="boardVO">
+		select b.*
+		from (
+			select
+				a.*, row_number() over (order by a.bono desc) rnum
+			from(
+				select 
+					bono, botitle, bowriter, bocontent, bodate, bohit
+				from board
+				where 1=1
+				<include refid="boardSearch"/>
+				order by bono desc
+				) a
+			) b
+		<!-- <![CDATA[  ]]> 를 작성해줘야 SQL안에 있는 부등호가 태그로 인식되지 않는다. -->
+		<!-- >= <= 꺽쇠가 기호로서 부등호로 인식 되게 하기 위함 -->
+		<![CDATA[
+			where b.rnum >= #{startRow} and b.rnum <= #{endRow}
+		]]>
+	</select>
+
+</mapper>

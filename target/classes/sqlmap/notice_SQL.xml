@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+  
+<mapper namespace="Notice">
+
+	<insert id="insertNotice" parameterType="noticeVO" useGeneratedKeys="true">
+		<selectKey keyProperty="noticeNo" order="BEFORE" resultType="int">
+			select seq_notice.nextval from dual
+		</selectKey>
+		insert into notice(
+			notice_no, notice_title, notice_content, notice_writer, notice_date
+		) values (
+			#{noticeNo}, #{noticeTitle}, #{noticeContent}, #{noticeWriter}, sysdate
+		)
+	</insert>
+	
+	<update id="incrementHit" parameterType="int">
+		update notice
+		set notice_hit = notice_hit + 1
+		where notice_no = #{noticeNo}
+	</update>
+
+	<select id="selectNotice" parameterType="int" resultType="noticeVO">
+		select 
+			notice_no, notice_title, notice_content, notice_writer, notice_date, notice_hit
+		from notice
+		where notice_no = #{noticeNo}
+	</select>
+	
+	<update id="updateNotice">
+		update notice
+		set
+			notice_title = #{noticeTitle},
+			notice_content = #{noticeContent},
+			notice_date = sysdate
+		where notice_no = #{noticeNo}
+	</update>
+	
+	<delete id="deleteNotice">
+		delete from notice
+		where notice_no = #{noticeNo}
+	</delete>
+
+	<select id="selectNoticeCount" parameterType="pagingVO" resultType="int">
+		select count(notice_no)
+		from notice
+		where 1=1
+		<include refid="noticeSearch"/>
+	</select>
+	
+	<sql id="noticeSearch">
+		<if test="searchWord != null and searchType == 'title'">
+			and (notice_title like '%' || #{searchWord} || '%')
+		</if>
+		<if test="searchWord != null and searchType == 'writer'">
+			and (notice_writer like '%' || #{searchWord} || '%')
+		</if>
+	</sql>
+	
+	<select id="selectNoticeList" parameterType="pagingVO" resultType="noticeVO">
+		select b.*
+		from (
+			select
+				a.*, row_number() over (order by a.notice_no desc) rnum
+			from(
+				select 
+					notice_no, notice_title, notice_writer, notice_content, notice_date, notice_hit
+				from notice
+				where 1=1
+				<include refid="noticeSearch"/>
+				order by notice_no desc
+				) a
+			) b
+		<!-- <![CDATA[  ]]> 를 작성해줘야 SQL안에 있는 부등호가 태그로 인식되지 않는다. -->
+		<![CDATA[
+			where b.rnum >= #{startRow} and b.rnum <= #{endRow}
+		]]>
+	</select>
+	
+	<select id="selectNoticeList_" resultType="noticeVO">
+		SELECT *
+		FROM (
+		    SELECT 
+		        notice_no, notice_title, notice_writer, notice_content, notice_date, notice_hit
+		    FROM 
+		        notice
+		    ORDER BY 
+		        notice_no DESC
+		)
+		<![CDATA[
+			WHERE ROWNUM <= 5
+		]]>
+	</select>
+
+</mapper>
